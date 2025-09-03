@@ -4,6 +4,7 @@ import morgan from "morgan";
 import dotenv from "dotenv";
 import pgClient from "./db.js";
 import authRoutes from "./routes/auth.js";
+import coursesRoutes from "./routes/courses.js";
 
 
 
@@ -21,6 +22,7 @@ app.use(morgan("dev"));
 // });
 
 app.use("/api/auth", authRoutes);
+app.use("/api/courses", coursesRoutes);
 
 pgClient.connect().then(()=>{
     app.listen(PORT, () => {
