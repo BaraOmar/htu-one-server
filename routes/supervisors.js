@@ -7,18 +7,29 @@ const router = express.Router();
 /**
  * GET /api/supervisors/:supervisor_id/students
  */
-router.get("/:supervisor_id/students",supervisorAuth, async (req, res) => {
+// Endpoint to fetch students with the last submission date
+router.get("/:supervisor_id/students", supervisorAuth, async (req, res) => {
   try {
     const { supervisor_id } = req.params;
-    const r = await db.query(
-      "SELECT id, full_name, email FROM students WHERE supervisor_id = $1 ORDER BY full_name",
+
+    // Query to get students with the latest request submission date
+    const result = await db.query(
+      `SELECT s.id, s.full_name, s.email, 
+              (SELECT r.submitted_at FROM requests r WHERE r.student_id = s.id ORDER BY r.submitted_at DESC LIMIT 1) AS last_submission
+        FROM students s
+        WHERE s.supervisor_id = $1
+        ORDER BY s.full_name`,
       [supervisor_id]
     );
-    res.json(r.rows);
+
+    // Return the students with their last submission date
+    res.json(result.rows);
   } catch (e) {
+    console.error(e);
     res.status(500).json({ message: "Server error" });
   }
 });
+
 
 /**
  * GET /api/supervisors/:supervisor_id/requests
