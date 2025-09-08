@@ -1,274 +1,205 @@
 
-````markdown
-# HTU-One Server
+# HTU-One Backend (Special Topics in Computer Science 1)
 
-Backend API for the **HTU-One system**, built with **Node.js + Express + PostgreSQL**.  
-This server handles **authentication**, **students**, **supervisors**, **courses**, and **course requests**.
+This repository contains the **API server** for the **HTU-One system**, built as part of the *Special Topics in Computer Science 1* course.  
 
 ---
 
-## 🚀 Setup
+## 📖 Description
 
-1. Clone the repo:
-   ```bash
-   git clone https://github.com/yourname/htu-one-server.git
-   cd htu-one-server
+This backend powers the HTU-One system and provides the main API endpoints for:  
+
+- **Authentication**  
+- **Supervisors**  
+- **Courses**  
+- **Requests**  
+
+It is designed to work with the [HTU-One Frontend](../htu-one-frontend) to provide a complete student–supervisor course preference management system.  
+
+---
+
+## 🛠️ Tech Stack
+
+- **Node.js** + **Express** — server and routing  
+- **PostgreSQL** (via `pg`) — relational database  
+- **dotenv** — environment variable management  
+- **cors** — cross-origin resource sharing  
+- **morgan** — request logging  
+
+---
+
+## 📂 Project Structure
+
+```
+htu-one-server/
+├── routes/
+│   ├── auth.js
+│   ├── courses.js
+│   ├── requests.js
+│   └── supervisor.js
+├── middlewares/
+│   └── supervisorAuth.js
+├── db.js
+├── server.js
+└── package.json
+```
+
+
+- **routes/** → Defines API routes for authentication, courses, requests, and supervisors.  
+- **middlewares/** → Contains middleware functions (e.g., supervisor authorization).  
+- **db.js** → Database connection setup with PostgreSQL.  
+- **server.js** → Entry point of the backend server.  
+
+---
+
+## 🚀 Getting Started
+
+Follow these steps to set up and run the server locally:
+
+### 1. Clone the repository
+```bash
+git clone <repo-link>
+cd htu-one-server
 ````
 
-2. Install dependencies:
-
-   ```bash
-   npm install
-   ```
-
-3. Configure database connection in `db.js`:
-
-   ```js
-   import pg from "pg";
-   const client = new pg.Client({
-     user: "postgres",
-     password: "yourpassword",
-     host: "localhost",
-     port: 5432,
-     database: "htu_one"
-   });
-   await client.connect();
-   export default client;
-   ```
-
-4. Run migrations in pgAdmin/psql:
-
-   ```sql
-   -- Students and supervisors
-   CREATE TABLE IF NOT EXISTS students (
-     id SERIAL PRIMARY KEY,
-     email TEXT UNIQUE NOT NULL,
-     full_name TEXT NOT NULL,
-     password TEXT NOT NULL
-   );
-
-   CREATE TABLE IF NOT EXISTS supervisors (
-     id SERIAL PRIMARY KEY,
-     email TEXT UNIQUE NOT NULL,
-     full_name TEXT NOT NULL,
-     password TEXT NOT NULL
-   );
-
-   -- Courses
-   CREATE TABLE IF NOT EXISTS courses (
-     id SERIAL PRIMARY KEY,
-     course_number TEXT UNIQUE NOT NULL,
-     name TEXT NOT NULL
-   );
-
-   -- Requests
-   DO $$ BEGIN
-     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname='request_status') THEN
-       CREATE TYPE request_status AS ENUM ('pending','need_feedback','approved');
-     END IF;
-   END $$;
-
-   CREATE TABLE IF NOT EXISTS requests (
-     id SERIAL PRIMARY KEY,
-     student_id INT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
-     submitted_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-   );
-
-   CREATE TABLE IF NOT EXISTS request_preferences (
-     id SERIAL PRIMARY KEY,
-     request_id INT NOT NULL REFERENCES requests(id) ON DELETE CASCADE,
-     course_id INT NOT NULL REFERENCES courses(id),
-     student_comment TEXT,
-     status request_status NOT NULL DEFAULT 'pending',
-     CONSTRAINT uq_request_course UNIQUE (request_id, course_id)
-   );
-   ```
-
----
-
-## 🔐 Auth Routes
-
-### Signup (Student / Supervisor)
-
-**POST** `/api/auth/signup/student`
-**POST** `/api/auth/signup/supervisor`
-
-Request body:
-
-```json
-{
-  "email": "student1@htu.one",
-  "fullName": "Test Student",
-  "password": "1234"
-}
-```
-
-Response:
-
-```json
-{
-  "id": 1,
-  "email": "student1@htu.one",
-  "full_name": "Test Student",
-  "role": "student"
-}
-```
-
----
-
-### Login (Student / Supervisor)
-
-**POST** `/api/auth/login`
-
-Request body:
-
-```json
-{
-  "email": "student1@htu.one",
-  "password": "1234"
-}
-```
-
-Response:
-
-```json
-{
-  "id": 1,
-  "email": "student1@htu.one",
-  "full_name": "Test Student",
-  "role": "student"
-}
-```
-
-> Save this object in **localStorage** on the frontend.
-> Example:
->
-> ```js
-> localStorage.setItem("user", JSON.stringify(response.data));
-> ```
-
----
-
-## 📚 Course Requests (Student)
-
-A student can only have **one active request**.
-When they submit a new one, it **replaces** the old request.
-Each request contains **exactly 6 courses**, each with its own comment and status.
-
----
-
-### Create/Replace Request
-
-**POST** `/api/requests`
-
-Request body:
-
-```json
-{
-  "student_id": 1,
-  "preferences": [
-    { "courseId": 1, "comment": "Top choice" },
-    { "courseId": 2, "comment": "Backup" },
-    { "courseId": 3, "comment": "" },
-    { "courseId": 4, "comment": "" },
-    { "courseId": 5, "comment": "" },
-    { "courseId": 6, "comment": "" }
-  ]
-}
-```
-
-Response:
-
-```json
-{
-  "request": [
-    {
-      "request_id": 10,
-      "submitted_at": "2025-09-03T18:00:00.000Z",
-      "course_id": 1,
-      "course_number": "CS101",
-      "course_name": "Intro to Programming",
-      "student_comment": "Top choice",
-      "status": "pending"
-    },
-    { "...": "5 more rows (one per course)" }
-  ]
-}
-```
-
----
-
-### Get My Requests
-
-**GET** `/api/requests/:student_id`
-
-Response:
-
-```json
-[
-  {
-    "request_id": 10,
-    "submitted_at": "2025-09-03T18:00:00.000Z",
-    "course_id": 1,
-    "course_number": "CS101",
-    "course_name": "Intro to Programming",
-    "student_comment": "Top choice",
-    "status": "pending"
-  },
-  {
-    "request_id": 10,
-    "submitted_at": "2025-09-03T18:00:00.000Z",
-    "course_id": 2,
-    "course_number": "CS201",
-    "course_name": "Data Structures",
-    "student_comment": "Backup",
-    "status": "pending"
-  }
-]
-```
-
----
-
-### Delete One Course from Request
-
-**DELETE** `/api/requests/:request_id/preferences/:course_id/:student_id`
-
-Response (updated request with remaining courses):
-
-```json
-{
-  "request": [
-    {
-      "request_id": 10,
-      "submitted_at": "2025-09-03T18:00:00.000Z",
-      "course_id": 1,
-      "course_number": "CS101",
-      "course_name": "Intro to Programming",
-      "student_comment": "Top choice",
-      "status": "pending"
-    }
-  ]
-}
-```
-
-If the course is `approved`, deletion is blocked:
-
-```json
-{ "message": "Cannot delete approved course" }
-```
-
----
-
-## 🛠️ Development
-
-Start the server:
+### 2. Install dependencies
 
 ```bash
-npm run dev
+npm install
 ```
 
-Default port: `5000`
-Base URL: `http://localhost:5000/api`
+### 3. Configure environment variables
+
+Create a `.env` file in the root of the project with the following (example) variables:
+
+```env
+PORT=5000
+DATABASE_URL=postgres://username:password@localhost:5432/htu_one
+JWT_SECRET=your_secret_key
+```
+
+### 4. Start the development server
+
+```bash
+npm start
+```
+
+### 5. Test the API
+
+By default, the server will run at:
 
 ```
+http://localhost:5000
 ```
+
+You can now test endpoints like `/auth`, `/courses`, `/requests`, `/supervisor`.
+
+---
+
+## 📌 Notes
+
+* Requires **Node.js** and **PostgreSQL** installed.
+* Make sure to set correct database credentials in `.env`.
+* This project is designed to work with the **htu-one-client**.
+
+
+---
+
+## 🔌 API Endpoints
+
+> **Base URL:** `http://localhost:<PORT>/api`
+> Replace `<PORT>` with your `.env` `PORT` value (e.g., `5000`).
+
+---
+
+### 🔑 Auth Routes
+
+**Base:** `/api/auth`
+
+| Method | Endpoint             | Notes                                                                            |
+| ------ | -------------------- | -------------------------------------------------------------------------------- |
+| POST   | `/signup/student`    | Creates a **student** (auto-assigns `supervisor_id = 1`).                        |
+| POST   | `/signup/supervisor` | Creates a **supervisor**.                                                        |
+| POST   | `/login`             | Logs in a user (student or supervisor). Returns `{ id, role, fullName, email }`. |
+
+**Body Requirements:**
+
+* **POST /signup/student**
+
+  ```json
+  { "email": "x@x.com", "fullName": "Name", "password": "secret" }
+  ```
+* **POST /signup/supervisor**
+
+  ```json
+  { "email": "x@x.com", "fullName": "Name", "password": "secret" }
+  ```
+* **POST /login**
+
+  ```json
+  { "email": "x@x.com", "password": "secret" }
+  ```
+
+---
+
+### 📚 Courses Routes
+
+**Base:** `/api/courses`
+
+| Method | Endpoint | Notes                                         |
+| ------ | -------- | --------------------------------------------- |
+| GET    | `/`      | List all courses (`id, course_number, name`). |
+
+---
+
+### 📨 Requests Routes
+
+**Base:** `/api/requests`
+
+| Method | Endpoint                                          | Notes                                                                                                                 |
+| ------ | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| POST   | `/`                                               | **Creates/Replaces** a request for the student. Must include **exactly 6** preferences. Status defaults to `pending`. |
+| GET    | `/:student_id`                                    | Get **all requests** for a student (flat list; one row per course in a request).                                      |
+| DELETE | `/:request_id/preferences/:course_id/:student_id` | Deletes **one course** from a request *iff* its status is **not** `approved`. Returns the **updated** request.        |
+
+**Body Requirements:**
+
+* **POST /**
+
+  ```json
+  {
+    "student_id": 123,
+    "preferences": [
+      { "courseId": 1, "comment": "optional" },
+      { "courseId": 2, "comment": null }
+    ]
+  }
+  ```
+
+---
+
+### 🧑‍🏫 Supervisors Routes
+
+**Base:** `/api/supervisors`
+
+> These routes use `supervisorAuth` middleware (must be called as a supervisor; add your headers/cookies as required).
+
+| Method | Endpoint                                                         | Notes                                                                                  |
+| ------ | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| GET    | `/:supervisor_id/students`                                       | List supervisor’s students with their **latest submission** datetime.                  |
+| GET    | `/:supervisor_id/requests`                                       | List **pending** request items (per course) for all supervised students.               |
+| GET    | `/:supervisor_id/students/:student_id/requests`                  | List **all requests** for a specific student (flat per course).                        |
+| PATCH  | `/:supervisor_id/requests/:request_id/courses/:course_id/status` | Update status for a specific course within a request. Returns the **updated** request. |
+
+**Body Requirements:**
+
+* **PATCH /\:supervisor\_id/requests/\:request\_id/courses/\:course\_id/status**
+
+  ```json
+  { "status": "pending" }
+  ```
+
+  Allowed values: `"pending"`, `"need_feedback"`, `"approved"`
+
+---
+
